@@ -1,0 +1,23 @@
+{
+	"Name": "Agent Usage Meter",
+	"Description": "Live usage limits, spend, and burn rate for Claude Code on your dials and touch strip. Reads local files only — no network access and no credentials.",
+	"Category": "Agent Usage Meter",
+	"Actions": {
+		"com.revductive.usage-meter.meter": {
+			"Name": "Usage Meter",
+			"Tooltip": "Session or weekly usage, context, spend, or burn rate."
+		},
+		"com.revductive.usage-meter.dual": {
+			"Name": "Dual Meter",
+			"Tooltip": "Session and weekly usage together."
+		},
+		"com.revductive.usage-meter.spend": {
+			"Name": "Spend Tracker",
+			"Tooltip": "Estimated spend by day, week, month, or session block."
+		},
+		"com.revductive.usage-meter.alert": {
+			"Name": "Threshold Alert",
+			"Tooltip": "Ambient warning key that lights up as you approach a limit."
+		}
+	}
+}

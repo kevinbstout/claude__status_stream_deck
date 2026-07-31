@@ -1,0 +1,118 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+	"UUID": "com.revductive.usage-meter",
+	"Name": "Agent Usage Meter",
+	"Version": "1.0.1.0",
+	"Author": "Revductive",
+	"Description": "Live usage limits, spend, and burn rate for Claude Code on your dials and touch strip. Reads local files only â€” no network access and no credentials.",
+	"Category": "Agent Usage Meter",
+	"CategoryIcon": "imgs/category",
+	"Icon": "imgs/plugin-icon",
+	"URL": "https://revductive.com",
+	"CodePath": "bin/plugin.js",
+	"SDKVersion": 2,
+	"Software": {
+		"MinimumVersion": "6.6"
+	},
+	"OS": [
+		{
+			"Platform": "windows",
+			"MinimumVersion": "10"
+		},
+		{
+			"Platform": "mac",
+			"MinimumVersion": "12"
+		}
+	],
+	"Nodejs": {
+		"Version": "20",
+		"Debug": "enabled"
+	},
+	"Actions": [
+		{
+			"UUID": "com.revductive.usage-meter.meter",
+			"Name": "Usage Meter",
+			"Tooltip": "Session or weekly allowance, burn rate, context, or API token cost.",
+			"Icon": "imgs/action-meter",
+			"Controllers": [
+				"Encoder",
+				"Keypad"
+			],
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Encoder": {
+				"layout": "layouts/meter.json",
+				"TriggerDescription": {
+					"Rotate": "Change metric",
+					"Push": "Refresh",
+					"Touch": "Toggle detail",
+					"LongTouch": "Open usage page"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/action-meter-key"
+				}
+			]
+		},
+		{
+			"UUID": "com.revductive.usage-meter.dual",
+			"Name": "Dual Meter",
+			"Tooltip": "Session and weekly usage together.",
+			"Icon": "imgs/action-dual",
+			"Controllers": [
+				"Encoder"
+			],
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Encoder": {
+				"layout": "layouts/dual.json",
+				"TriggerDescription": {
+					"Push": "Refresh",
+					"LongTouch": "Open usage page"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/action-dual-key"
+				}
+			]
+		},
+		{
+			"UUID": "com.revductive.usage-meter.spend",
+			"Name": "Spend Tracker",
+			"Tooltip": "API list-price value of local token use. Not subscription spend.",
+			"Icon": "imgs/action-spend",
+			"Controllers": [
+				"Encoder",
+				"Keypad"
+			],
+			"PropertyInspectorPath": "ui/inspector.html",
+			"Encoder": {
+				"layout": "layouts/spend.json",
+				"TriggerDescription": {
+					"Rotate": "Change window",
+					"Push": "Refresh"
+				}
+			},
+			"States": [
+				{
+					"Image": "imgs/action-spend-key"
+				}
+			]
+		},
+		{
+			"UUID": "com.revductive.usage-meter.alert",
+			"Name": "Threshold Alert",
+			"Tooltip": "Ambient warning key that lights up as you approach a limit.",
+			"Icon": "imgs/action-alert",
+			"Controllers": [
+				"Keypad"
+			],
+			"PropertyInspectorPath": "ui/inspector.html",
+			"States": [
+				{
+					"Image": "imgs/action-alert-key"
+				}
+			]
+		}
+	]
+}

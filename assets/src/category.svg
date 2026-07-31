@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" width="48" height="48">
+	<!-- Monochrome white stroke on transparent. Colour or a solid background is an automatic
+	     rejection at Marketplace review. -->
+	<g fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round">
+		<path d="M12.69 37.31 A16 16 0 1 1 35.31 37.31" opacity="0.45"/>
+		<path d="M12.69 37.31 A16 16 0 1 1 36.94 16.59"/>
+	</g>
+</svg>

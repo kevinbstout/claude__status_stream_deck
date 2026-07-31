@@ -1,0 +1,44 @@
+{
+	"$schema": "https://schemas.elgato.com/streamdeck/plugins/layout.json",
+	"id": "meter",
+	"items": [
+		{
+			"key": "heading",
+			"type": "text",
+			"rect": [16, 6, 168, 18],
+			"font": { "size": 14, "weight": 600 },
+			"alignment": "left"
+		},
+		{
+			"key": "value",
+			"type": "text",
+			"rect": [96, 26, 88, 32],
+			"font": { "size": 26, "weight": 600 },
+			"alignment": "right"
+		},
+		{
+			"key": "reset",
+			"type": "text",
+			"rect": [16, 30, 76, 16],
+			"font": { "size": 11, "weight": 400 },
+			"alignment": "left"
+		},
+		{
+			"key": "pace",
+			"type": "text",
+			"rect": [16, 48, 76, 14],
+			"font": { "size": 11, "weight": 400 },
+			"alignment": "left"
+		},
+		{
+			"key": "indicator",
+			"type": "gbar",
+			"rect": [16, 72, 168, 20],
+			"value": 0,
+			"subtype": 4,
+			"bar_h": 12,
+			"border_w": 0,
+			"bar_bg_c": "0:#00c853,0.6:#f4b675,0.85:#ff6d00,1:#d50000"
+		}
+	]
+}

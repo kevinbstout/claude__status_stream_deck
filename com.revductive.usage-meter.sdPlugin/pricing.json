@@ -1,0 +1,28 @@
+// Rates are USD per million tokens and are USER-MAINTAINED. They are seeded from published list
+// prices at build time and WILL drift as pricing changes — edit this file to keep your spend
+// figures accurate. Any rollup computed from these rates is shown with a leading `~`.
+//
+// Whole-line `//` comments are stripped before parsing. `match` is a case-insensitive substring
+// tested against the model id; the longest match wins, and `default` covers anything unmatched.
+{
+	"default": {
+		"input": 3,
+		"output": 15,
+		"cacheWrite": 3.75,
+		"cacheRead": 0.3
+	},
+	"models": [
+		{
+			"match": "opus",
+			"rate": { "input": 15, "output": 75, "cacheWrite": 18.75, "cacheRead": 1.5 }
+		},
+		{
+			"match": "sonnet",
+			"rate": { "input": 3, "output": 15, "cacheWrite": 3.75, "cacheRead": 0.3 }
+		},
+		{
+			"match": "haiku",
+			"rate": { "input": 1, "output": 5, "cacheWrite": 1.25, "cacheRead": 0.1 }
+		}
+	]
+}

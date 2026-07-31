@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<title>Agent Usage Meter</title>
+		<!--
+			Self-contained by design. Nothing here loads from a CDN or any other host: the plugin
+			makes zero network calls, and the property inspector holds to the same rule. The only
+			socket is the localhost one Stream Deck itself hands us to register the inspector.
+		-->
+		<style>
+			:root {
+				color-scheme: dark;
+				--bg: #2d2d2d;
+				--fg: #d8d8d8;
+				--muted: #969696;
+				--line: #3d3d3d;
+				--field: #3d3d3d;
+				--accent: #77f;
+				--warn: #f4b675;
+				--danger: #d50000;
+				--label-w: 94px;
+			}
+			* {
+				box-sizing: border-box;
+			}
+			body {
+				margin: 0;
+				padding: 12px 12px 20px;
+				background: var(--bg);
+				color: var(--fg);
+				font: 13px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+			}
+			.row {
+				display: flex;
+				align-items: center;
+				gap: 8px;
+				margin-bottom: 8px;
+			}
+			.row > label {
+				flex: 0 0 var(--label-w);
+				text-align: right;
+				color: var(--muted);
+			}
+			.row > .field {
+				flex: 1 1 auto;
+				min-width: 0;
+			}
+			select,
+			input[type="text"],
+			input[type="number"] {
+				width: 100%;
+				padding: 4px 6px;
+				background: var(--field);
+				color: var(--fg);
+				border: 1px solid transparent;
+				border-radius: 3px;
+				font: inherit;
+			}
+			select:focus,
+			input:focus {
+				outline: none;
+				border-color: var(--accent);
+			}
+			input.invalid {
+				border-color: var(--danger);
+			}
+			button {
+				padding: 4px 10px;
+				background: var(--field);
+				color: var(--fg);
+				border: 1px solid var(--line);
+				border-radius: 3px;
+				font: inherit;
+				cursor: pointer;
+			}
+			button:hover:not(:disabled) {
+				background: #4a4a4a;
+			}
+			button:disabled {
+				opacity: 0.45;
+				cursor: default;
+			}
+			.hint,
+			.status {
+				margin: 0 0 8px calc(var(--label-w) + 8px);
+				color: var(--muted);
+				font-size: 12px;
+			}
+			.hint.error {
+				color: var(--warn);
+			}
+			.mono {
+				font-family: ui-monospace, Consolas, "SF Mono", monospace;
+				word-break: break-all;
+			}
+			details {
+				margin-top: 10px;
+				border-top: 1px solid var(--line);
+				padding-top: 10px;
+			}
+			summary {
+				cursor: pointer;
+				color: var(--muted);
+				margin-bottom: 8px;
+			}
+			.privacy {
+				margin-top: 14px;
+				padding-top: 10px;
+				border-top: 1px solid var(--line);
+				color: var(--muted);
+				font-size: 12px;
+			}
+			[hidden] {
+				display: none !important;
+			}
+		</style>
+	</head>
+	<body>
+		<!-- Everything starts hidden and is revealed on DOM ready by action UUID, so the inspector
+			 never flashes controls that do not belong to the selected action. -->
+		<div class="row" id="row-metric" hidden>
+			<label for="metric">Metric</label>
+			<div class="field"><select id="metric"></select></div>
+		</div>
+
+		<div class="row" id="row-window" hidden>
+			<label for="window">Window</label>
+			<div class="field"><select id="window"></select></div>
+		</div>
+		<p class="hint" id="window-note" hidden>
+			API list price for the tokens used, calculated locally. On a Pro or Max plan this is not
+			money you spend and is unrelated to your plan allowance — it is what the same usage would
+			have cost on pay-as-you-go.
+		</p>
+
+		<div class="row" id="row-warn" hidden>
+			<label for="warnAt">Warn at</label>
+			<div class="field"><input id="warnAt" type="number" min="1" max="100" step="1" /></div>
+		</div>
+		<div class="row" id="row-critical" hidden>
+			<label for="criticalAt">Critical at</label>
+			<div class="field"><input id="criticalAt" type="number" min="1" max="100" step="1" /></div>
+		</div>
+		<p class="hint" id="threshold-hint" hidden></p>
+
+		<div class="row">
+			<label>Plan usage</label>
+			<div class="field"><span id="plan-status">Checking…</span></div>
+		</div>
+		<p class="hint">
+			Read from Claude desktop's own usage record. Covers your whole plan — desktop, web and
+			Claude Code share one allowance. No setup needed.
+		</p>
+
+		<div class="row" id="row-hook">
+			<label>Statusline</label>
+			<div class="field">
+				<button id="install" type="button">Install hook</button>
+				<button id="uninstall" type="button">Remove</button>
+			</div>
+		</div>
+		<p class="status" id="hook-status">Checking…</p>
+		<p class="hint error" id="hook-conflict" hidden></p>
+		<p class="hint">
+			Optional. Adds reset countdowns and context usage while Claude Code is running. The
+			allowance meters work without it.
+		</p>
+
+		<details>
+			<summary>Advanced</summary>
+			<div class="row">
+				<label for="desktopDir">Desktop folder</label>
+				<div class="field"><input id="desktopDir" type="text" placeholder="Claude desktop app data (default)" /></div>
+			</div>
+			<div class="row">
+				<label for="claudeDir">Claude Code folder</label>
+				<div class="field"><input id="claudeDir" type="text" placeholder="~/.claude (default)" /></div>
+			</div>
+			<p class="hint">Leave both blank unless Claude stores its data somewhere other than the default.</p>
+		</details>
+
+		<p class="privacy">Reads local files only. No network access, no credentials.</p>
+
+		<script>
+			(() => {
+				"use strict";
+
+				let socket;
+				let uuid;
+				let actionUuid = "";
+				let settings = {};
+				let global = {};
+
+				const $ = (id) => document.getElementById(id);
+
+				const METRICS = [
+					["five_hour", "Session allowance (5 hour)"],
+					["seven_day", "Weekly allowance (7 day)"],
+					["allowance_burn", "Allowance burn rate"],
+					["context", "Context window"],
+					["cost_today", "API cost today"],
+					["cost_rate", "API cost rate"]
+				];
+				const ALERT_METRICS = METRICS.slice(0, 2);
+				const WINDOWS = [
+					["today", "Today"],
+					["week", "Last 7 days"],
+					["month", "This month"],
+					["block", "Active 5h block"]
+				];
+
+				function fill(select, options) {
+					select.replaceChildren(
+						...options.map(([value, label]) => {
+							const option = document.createElement("option");
+							option.value = value;
+							option.textContent = label;
+							return option;
+						})
+					);
+				}
+
+				function send(message) {
+					if (socket && socket.readyState === 1) {
+						socket.send(JSON.stringify(message));
+					}
+				}
+
+				// Auto-save on change — Elgato's guidelines forbid a Save button.
+				function saveSettings() {
+					send({ event: "setSettings", context: uuid, payload: settings });
+				}
+
+				function saveGlobal() {
+					send({ event: "setGlobalSettings", context: uuid, payload: global });
+				}
+
+				function toPlugin(payload) {
+					send({ event: "sendToPlugin", action: actionUuid, context: uuid, payload });
+				}
+
+				function validateThresholds() {
+					const warn = Number($("warnAt").value);
+					const critical = Number($("criticalAt").value);
+					const hint = $("threshold-hint");
+					let message = "";
+
+					if (!Number.isFinite(warn) || warn < 1 || warn > 100) {
+						message = "Warn must be between 1 and 100.";
+						$("warnAt").classList.add("invalid");
+					} else {
+						$("warnAt").classList.remove("invalid");
+					}
+
+					if (!Number.isFinite(critical) || critical < 1 || critical > 100) {
+						message = message || "Critical must be between 1 and 100.";
+						$("criticalAt").classList.add("invalid");
+					} else if (Number.isFinite(warn) && critical < warn) {
+						message = message || "Critical must be at or above the warn threshold.";
+						$("criticalAt").classList.add("invalid");
+					} else {
+						$("criticalAt").classList.remove("invalid");
+					}
+
+					hint.textContent = message;
+					hint.hidden = message === "";
+					return message === "";
+				}
+
+				function applySettings() {
+					if ($("metric").options.length > 0) {
+						const fallback = $("metric").options[0].value;
+						$("metric").value = settings.metric ?? fallback;
+					}
+					if ($("window").options.length > 0) {
+						$("window").value = settings.window ?? "today";
+					}
+					$("warnAt").value = settings.warnAt ?? 70;
+					$("criticalAt").value = settings.criticalAt ?? 90;
+				}
+
+				function renderHookStatus(status) {
+					const label = $("hook-status");
+					const conflict = $("hook-conflict");
+
+					const plan = $("plan-status");
+					if (status.planAvailable) {
+						const when = status.planSampledAt ? new Date(status.planSampledAt) : null;
+						const at = when ? when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+						plan.textContent = `Session ${status.planFiveHourPct}% · weekly ${status.planSevenDayPct}%${at ? ` (${at})` : ""}`;
+					} else {
+						plan.textContent = "Not found — open Claude desktop at least once.";
+					}
+					$("install").disabled = status.installed === true || status.conflict === true;
+					$("uninstall").disabled = status.installed !== true;
+
+					if (status.conflict) {
+						label.textContent = "Not installed — another statusline is configured.";
+						conflict.innerHTML =
+							"Claude Code already runs a statusline command. Remove or merge it first, then install:<br><span class='mono'></span>";
+						conflict.querySelector(".mono").textContent = status.existing ?? "";
+						conflict.hidden = false;
+						return;
+					}
+
+					conflict.hidden = true;
+					label.textContent = status.installed
+						? "Installed. Live limits update while Claude Code is running."
+						: "Not installed. Spend still works; live limits need the hook.";
+				}
+
+				function wire() {
+					$("metric").addEventListener("change", (e) => {
+						settings.metric = e.target.value;
+						saveSettings();
+					});
+					$("window").addEventListener("change", (e) => {
+						settings.window = e.target.value;
+						saveSettings();
+					});
+					for (const id of ["warnAt", "criticalAt"]) {
+						$(id).addEventListener("change", () => {
+							if (!validateThresholds()) {
+								return;
+							}
+							settings.warnAt = Number($("warnAt").value);
+							settings.criticalAt = Number($("criticalAt").value);
+							// Re-arm the crossing detector so new thresholds can fire again.
+							delete settings.lastBand;
+							saveSettings();
+						});
+					}
+					$("claudeDir").addEventListener("change", (e) => {
+						global.claudeDir = e.target.value.trim();
+						saveGlobal();
+					});
+					$("desktopDir").addEventListener("change", (e) => {
+						global.desktopDir = e.target.value.trim();
+						saveGlobal();
+						toPlugin({ event: "getHookStatus" });
+					});
+					$("install").addEventListener("click", () => toPlugin({ event: "installHook" }));
+					$("uninstall").addEventListener("click", () => toPlugin({ event: "uninstallHook" }));
+				}
+
+				function revealFor(action) {
+					const isMeter = action.endsWith(".meter");
+					const isAlert = action.endsWith(".alert");
+					const isSpend = action.endsWith(".spend");
+
+					if (isMeter || isAlert) {
+						fill($("metric"), isAlert ? ALERT_METRICS : METRICS);
+						$("row-metric").hidden = false;
+					}
+					if (isSpend) {
+						fill($("window"), WINDOWS);
+						$("row-window").hidden = false;
+						$("window-note").hidden = false;
+					}
+					if (isAlert) {
+						$("row-warn").hidden = false;
+						$("row-critical").hidden = false;
+					}
+				}
+
+				// Stream Deck calls this global once the inspector is loaded.
+				window.connectElgatoStreamDeckSocket = (port, inUuid, registerEvent, _info, actionInfo) => {
+					uuid = inUuid;
+					let parsed = {};
+					try {
+						parsed = typeof actionInfo === "string" ? JSON.parse(actionInfo) : actionInfo || {};
+					} catch {
+						parsed = {};
+					}
+					actionUuid = parsed.action ?? "";
+					settings = (parsed.payload && parsed.payload.settings) || {};
+
+					revealFor(actionUuid);
+					applySettings();
+					if (actionUuid.endsWith(".alert")) {
+						validateThresholds();
+					}
+
+					socket = new WebSocket(`ws://127.0.0.1:${port}`);
+					socket.addEventListener("open", () => {
+						send({ event: registerEvent, uuid });
+						send({ event: "getGlobalSettings", context: uuid });
+						toPlugin({ event: "getHookStatus" });
+					});
+					socket.addEventListener("message", (event) => {
+						let message;
+						try {
+							message = JSON.parse(event.data);
+						} catch {
+							return;
+						}
+						if (message.event === "didReceiveGlobalSettings") {
+							global = (message.payload && message.payload.settings) || {};
+							$("claudeDir").value = global.claudeDir ?? "";
+							$("desktopDir").value = global.desktopDir ?? "";
+						} else if (message.event === "didReceiveSettings") {
+							settings = (message.payload && message.payload.settings) || {};
+							applySettings();
+						} else if (message.event === "sendToPropertyInspector") {
+							const payload = message.payload || {};
+							if (payload.event === "hookStatus") {
+								renderHookStatus(payload);
+							} else if (payload.event === "installResult" && payload.ok === false) {
+								const hint = $("hook-conflict");
+								hint.textContent =
+									payload.reason === "existing"
+										? "Could not install: another statusline is configured."
+										: "Could not install: settings.json could not be written.";
+								hint.hidden = false;
+							}
+						}
+					});
+				};
+
+				wire();
+			})();
+		</script>
+	</body>
+</html>

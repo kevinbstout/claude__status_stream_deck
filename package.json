@@ -1,0 +1,37 @@
+{
+	"name": "agent-usage-meter",
+	"version": "1.0.0",
+	"description": "Live usage limits, spend, and burn rate for Claude Code on your Stream Deck + dials and touch strip.",
+	"license": "MIT",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"icons": "node scripts/icons.mjs",
+		"build": "npm run icons && rollup -c",
+		"watch": "rollup -c -w --watch.onEnd=\"streamdeck restart com.revductive.usage-meter\"",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"typecheck": "tsc -p tsconfig.test.json",
+		"diagnose": "rollup -c && node build/diagnose.mjs",
+		"validate": "streamdeck validate com.revductive.usage-meter.sdPlugin",
+		"pack": "npm run build && streamdeck pack com.revductive.usage-meter.sdPlugin --force",
+		"audit:offline": "node scripts/audit-offline.mjs"
+	},
+	"dependencies": {
+		"@elgato/streamdeck": "^2.1.0"
+	},
+	"devDependencies": {
+		"@elgato/cli": "^1.7.4",
+		"@rollup/plugin-commonjs": "^29.0.3",
+		"@rollup/plugin-node-resolve": "^16.0.3",
+		"@rollup/plugin-terser": "^1.0.0",
+		"@rollup/plugin-typescript": "^12.3.0",
+		"@types/node": "^26.1.2",
+		"rollup": "^4.62.3",
+		"rollup-plugin-copy": "^3.5.0",
+		"sharp": "^0.35.3",
+		"tslib": "^2.6.2",
+		"typescript": "^5.9.3",
+		"vitest": "^4.1.10"
+	}
+}

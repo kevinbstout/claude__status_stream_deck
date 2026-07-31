@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+	<!-- The plugin icon is the one asset allowed colour. Arc at roughly 70%, amber into red. -->
+	<defs>
+		<linearGradient id="meterFill" x1="0" y1="1" x2="1" y2="0">
+			<stop offset="0" stop-color="#00c853"/>
+			<stop offset="0.55" stop-color="#f4b675"/>
+			<stop offset="1" stop-color="#d50000"/>
+		</linearGradient>
+	</defs>
+	<rect width="256" height="256" rx="56" fill="#16181c"/>
+	<g fill="none" stroke-linecap="round">
+		<path d="M67.7 188.3 A85 85 0 1 1 188.3 188.3" stroke="#2a2a2a" stroke-width="26"/>
+		<path d="M67.7 188.3 A85 85 0 1 1 196.8 78.2" stroke="url(#meterFill)" stroke-width="26"/>
+	</g>
+	<circle cx="128" cy="128" r="13" fill="#f4b675"/>
+</svg>
