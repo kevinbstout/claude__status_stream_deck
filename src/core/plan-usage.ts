@@ -228,10 +228,23 @@ export function inferFiveHourReset(
 		return undefined;
 	}
 
-	return {
-		at,
-		confidence: samples[start]!.fiveHourPct >= ROUGH_START_PCT ? "rough" : "good"
-	};
+	// Two independent things have to hold before the anchor is worth displaying.
+	//
+	// First, the transition has to have been *watched*: a zero reading shortly before the run. When
+	// the desktop app starts up mid-block it simply begins at whatever the counter already reads,
+	// and the block's true start is unrecoverable — no local source records it, since the usage may
+	// have come from the web app entirely.
+	//
+	// Second, the first reading has to be small. A block can sit at zero for hours on usage below
+	// half a percent, so even a watched transition can be late if it opens with a jump.
+	const before = start > 0 ? samples[start - 1] : undefined;
+	const watchedOpen =
+		before !== undefined &&
+		before.fiveHourPct === 0 &&
+		samples[start]!.at.getTime() - before.at.getTime() <= MAX_BLOCK_GAP_MS;
+	const opensSmall = samples[start]!.fiveHourPct < ROUGH_START_PCT;
+
+	return { at, confidence: watchedOpen && opensSmall ? "good" : "rough" };
 }
 
 /** Read Claude desktop's plan usage history, cached by file mtime and size. */

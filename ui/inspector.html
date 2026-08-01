@@ -196,13 +196,16 @@
 
 				const METRICS = [
 					["five_hour", "Session allowance (5 hour)"],
+					["five_hour_burn", "Session burn rate"],
 					["seven_day", "Weekly allowance (7 day)"],
-					["allowance_burn", "Allowance burn rate"],
+					["seven_day_burn", "Weekly burn rate"],
+					["allowance_burn", "Burn rate — whichever caps first"],
 					["context", "Context window"],
 					["cost_today", "API cost today"],
 					["cost_rate", "API cost rate"]
 				];
-				const ALERT_METRICS = METRICS.slice(0, 2);
+				// The alert key only bands a percentage, so it offers the two allowance metrics.
+				const ALERT_METRICS = [METRICS[0], METRICS[2]];
 				const WINDOWS = [
 					["today", "Today"],
 					["week", "Last 7 days"],

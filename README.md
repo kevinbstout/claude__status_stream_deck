@@ -83,10 +83,21 @@ It is deliberately one-sided. Usage below half a percent reads as zero, so the f
 sits at or after the true start — meaning an inferred reset **runs late, never early**. It cannot
 claim a window resets sooner than it does.
 
-Three situations produce no countdown at all, rather than a doubtful one: no active block, a
-sampling gap wide enough that the desktop app was clearly closed (two blocks can then look like one),
-and a first reading of 3% or more — which means usage accumulated before the first sample, so the
-estimate would run late by hours.
+A precise countdown needs the block to have been **watched opening** — a zero reading shortly before
+the first non-zero one. Otherwise the estimate degrades to an upper bound, `resets ≤5h`, which is
+still true but coarse.
+
+The most common reason for that, and the least obvious: **the block opened on another device.** Your
+allowance is shared across the iOS app, the web app, Claude desktop and Claude Code, so a session
+begun on your phone starts the five-hour clock with nothing recorded on this machine at all. The
+same applies when Claude desktop simply wasn't running at the time. Neither is recoverable locally —
+no amount of inference can find a boundary that was never observed.
+
+The estimate is also marked coarse when the first reading is 3% or more, since a block can sit at
+zero for hours on usage below half a percent, meaning the counter had already been accumulating.
+
+No countdown is shown at all when there is no active block, or when a sampling gap is wide enough
+that two separate blocks could look like one.
 
 Even when the countdown is withheld, the reset is still used to **clip the cap projection**, since
 running late only ever makes clipping more conservative. A real reset time from the statusline hook

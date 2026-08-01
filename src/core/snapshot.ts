@@ -249,6 +249,15 @@ export function buildSnapshot({ state, plan, entries, exactness, now = new Date(
 	if (useInferred) {
 		fiveHour.resetsAtInferred = true;
 		fiveHour.resetConfidence = plan?.fiveHourResetConfidence;
+
+		// Pace divides consumption by elapsed window. A rough inference places the window start too
+		// late, which understates elapsed and therefore overstates pace — reporting "fast" for a
+		// session that is actually on track. Drop it rather than assert something skewed; the
+		// reset itself stays, because it is still a valid upper bound for clipping and display.
+		if (fiveHour.resetConfidence !== "good") {
+			delete fiveHour.pace;
+			delete fiveHour.windowStart;
+		}
 	}
 
 	let sevenDay = buildMetric(

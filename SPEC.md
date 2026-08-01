@@ -174,10 +174,23 @@ Three guards reject rather than return a doubtful value: no active block; a samp
 minutes inside the run (the only case that can produce an *early* inference, since two blocks merge
 into one apparent run when the desktop app was closed between them); and a reset already in the past.
 
-Confidence is `rough` when the first reading is `>= 3%`, meaning usage accumulated before the first
-sample. Rough inferences still clip, but are never displayed — measured against real history they can
-run late by hours. `Metric.resetsAtInferred` and `resetConfidence` carry this to the UI, and
-`format.resetLine()` is the single place that decides whether a countdown is shown and marks it `~`.
+Confidence is `good` only when the block was **watched opening** — a zero reading within 15 minutes
+before the run — *and* the first reading is under 3%. Both matter: an unwatched open means the true
+start is unrecoverable, and a large first reading means the counter had already been accumulating
+while displaying zero.
+
+The unwatched case is common and not a defect. The allowance spans the iOS app, the web app, Claude
+desktop and Claude Code, so a block opened on a phone leaves no local record whatsoever — as does one
+opened while Claude desktop was closed. Neither is recoverable from any local source; Claude Code
+transcripts do not help, since they only cover this machine's Claude Code sessions.
+
+`Metric.resetsAtInferred` and `resetConfidence` carry this to the UI. `format.resetLine()` is the
+single place that decides what to render: `resets 2h 14m` for an authoritative time, `~resets 2h 10m`
+for a good inference, and `resets ≤5h` for a rough one — a true upper bound, since the inference runs
+late, rounded up to make the coarseness plain.
+
+A rough inference also suppresses `pace`, which divides consumption by elapsed window: a late start
+understates elapsed time and so overstates pace, reporting "fast" for a session that is on track.
 
 A statusline reset always wins; it is authoritative and the inferred one is not.
 

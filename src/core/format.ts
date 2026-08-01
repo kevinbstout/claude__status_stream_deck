@@ -60,7 +60,15 @@ export function resetLine(
 	if (!metric.resetsAtInferred) {
 		return resetIn(metric.resetsAt, now);
 	}
-	return metric.resetConfidence === "good" ? `~${resetIn(metric.resetsAt, now)}` : "";
+	if (metric.resetConfidence === "good") {
+		return `~${resetIn(metric.resetsAt, now)}`;
+	}
+
+	// A rough inference always runs late, so it is a true *upper* bound: the window resets at or
+	// before this. Rounding up to the hour keeps that guarantee while making the coarseness obvious,
+	// which beats leaving the line blank.
+	const hours = Math.ceil((metric.resetsAt.getTime() - now.getTime()) / 3_600_000);
+	return hours > 0 ? `resets ≤${hours}h` : "";
 }
 
 /** USD, two decimals below $100 and none above, so the figure always fits the strip. */

@@ -2,7 +2,7 @@
 	"$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
 	"UUID": "com.revductive.usage-meter",
 	"Name": "Agent Usage Meter",
-	"Version": "1.1.0.0",
+	"Version": "1.2.0.0",
 	"Author": "Revductive",
 	"Description": "Live plan usage, burn rate, and API token cost for Claude on your dials and touch strip. Reads local files only — no network access and no credentials.",
 	"Category": "Agent Usage Meter",

@@ -82,13 +82,21 @@ describe("resetLine", () => {
 		);
 	});
 
-	it("shows nothing for a rough inference", () => {
-		// A rough inference can run late by hours: safe to clip projections against, not to display.
-		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true, resetConfidence: "rough" }, NOW)).toBe("");
+	it("degrades a rough inference to an upper bound rather than a point estimate", () => {
+		// A rough inference runs late, so it bounds the reset from above: 2h10m away becomes "<=3h",
+		// which stays true even though the real reset may be much sooner.
+		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true, resetConfidence: "rough" }, NOW)).toBe(
+			"resets ≤3h"
+		);
 	});
 
-	it("shows nothing when an inferred reset carries no confidence", () => {
-		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true }, NOW)).toBe("");
+	it("treats a missing confidence as rough", () => {
+		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true }, NOW)).toBe("resets ≤3h");
+	});
+
+	it("shows nothing when a rough bound has already elapsed", () => {
+		const past = new Date(NOW.getTime() - 60_000);
+		expect(resetLine({ resetsAt: past, resetsAtInferred: true, resetConfidence: "rough" }, NOW)).toBe("");
 	});
 
 	it("shows nothing when there is no reset at all", () => {

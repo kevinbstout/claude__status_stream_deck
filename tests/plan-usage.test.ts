@@ -64,18 +64,34 @@ describe("inferFiveHourReset", () => {
 	}
 
 	it("puts the reset five hours after the block opened", () => {
-		// Block opens 60 minutes before T0; reset is 5h after that.
-		const samples = run(60, [1, 2, 3, 4]);
+		// A zero, then the block opens 60 minutes before T0; reset is 5h after that.
+		const samples = run(65, [0, 1, 2, 3, 4]);
 		const result = inferFiveHourReset(samples, NOW)!;
 		expect(result.at.toISOString()).toBe(new Date(T0 - 60 * 60_000 + 5 * H).toISOString());
 		expect(result.confidence).toBe("good");
 	});
 
+	it("is only confident when the block was watched opening", () => {
+		// Claude desktop started sampling mid-block: no zero precedes the run, so the true start is
+		// unrecoverable — the usage may have come from the web app, which leaves no local trace.
+		const result = inferFiveHourReset(run(60, [1, 2, 3, 4]), NOW)!;
+		expect(result.confidence).toBe("rough");
+	});
+
+	it("is not confident when the zero before the run is far older", () => {
+		const samples: PlanSample[] = [
+			{ at: new Date(T0 - 300 * 60_000), fiveHourPct: 0, sevenDayPct: 2, org: "org-a" },
+			...run(60, [1, 2, 3, 4])
+		];
+		expect(inferFiveHourReset(samples, NOW)!.confidence).toBe("rough");
+	});
+
 	it("anchors to the start of the run, not to an earlier block", () => {
 		// A zero separates two blocks; only the later one is current.
-		const samples = [...run(120, [4, 5, 0]), ...run(60, [1, 2])];
+		const samples = run(75, [4, 5, 0, 1, 2]);
 		const result = inferFiveHourReset(samples, NOW)!;
 		expect(result.at.toISOString()).toBe(new Date(T0 - 60 * 60_000 + 5 * H).toISOString());
+		expect(result.confidence).toBe("good");
 	});
 
 	it("returns nothing when no block is active", () => {
@@ -99,15 +115,14 @@ describe("inferFiveHourReset", () => {
 		expect(inferFiveHourReset(samples, wayLater)).toBeUndefined();
 	});
 
-	it("marks a large first reading as rough, since usage began before we saw it", () => {
-		// The real-world failure case: the block opened earlier at under half a percent, which reads
-		// as zero, so the inferred reset runs late.
-		const result = inferFiveHourReset(run(60, [5, 8, 11]), NOW)!;
-		expect(result.confidence).toBe("rough");
+	it("marks a large first reading as rough even when the open was watched", () => {
+		// A block can sit at zero for hours on usage below half a percent, so a jump straight to 5%
+		// means the counter had already been accumulating.
+		expect(inferFiveHourReset(run(65, [0, 5, 8, 11]), NOW)!.confidence).toBe("rough");
 	});
 
-	it("treats a small first reading as a genuine block start", () => {
-		expect(inferFiveHourReset(run(60, [2, 8, 11]), NOW)!.confidence).toBe("good");
+	it("treats a watched open with a small first reading as good", () => {
+		expect(inferFiveHourReset(run(65, [0, 2, 8, 11]), NOW)!.confidence).toBe("good");
 	});
 
 	it("returns nothing for an empty series", () => {

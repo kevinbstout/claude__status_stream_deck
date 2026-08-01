@@ -228,6 +228,31 @@ describe("inferred reset times", () => {
 		expect(snapshot.fiveHour.resetConfidence).toBe("rough");
 	});
 
+	it("does not report pace from a rough inference, which would overstate it", () => {
+		// A late window start understates elapsed time and so inflates pace, reporting "fast" for a
+		// session that is on track. Better to say nothing than to assert a skewed reading.
+		const rough = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T16:00:00.000Z"),
+			fiveHourResetConfidence: "rough" as const
+		};
+		const snapshot = buildSnapshot({ state: undefined, plan: rough, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.pace).toBeUndefined();
+		expect(snapshot.fiveHour.windowStart).toBeUndefined();
+		// The reset survives — it is still a valid upper bound.
+		expect(snapshot.fiveHour.resetsAt!.toISOString()).toBe("2026-07-31T16:00:00.000Z");
+	});
+
+	it("does report pace from a good inference", () => {
+		const good = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T16:00:00.000Z"),
+			fiveHourResetConfidence: "good" as const
+		};
+		const snapshot = buildSnapshot({ state: undefined, plan: good, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.pace).toBeDefined();
+	});
+
 	it("keeps a projection that lands before the inferred reset", () => {
 		const plan = {
 			...base,

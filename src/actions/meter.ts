@@ -20,7 +20,9 @@ import { applySettings, attach, cycle, detach, openUsagePage, refresh, repaint }
 
 export const METRICS = [
 	"five_hour",
+	"five_hour_burn",
 	"seven_day",
+	"seven_day_burn",
 	"allowance_burn",
 	"context",
 	"cost_today",
@@ -38,7 +40,9 @@ export type MeterSettings = {
 // not subscription spend, and must never be mistaken for the Pro/Max allowance above them.
 const HEADINGS: Record<MetricId, string> = {
 	five_hour: "Session (5h)",
+	five_hour_burn: "Session burn",
 	seven_day: "Weekly (7d)",
+	seven_day_burn: "Weekly burn",
 	allowance_burn: "Allowance burn",
 	context: "Context",
 	cost_today: "API cost today",
@@ -47,7 +51,9 @@ const HEADINGS: Record<MetricId, string> = {
 
 const SHORT: Record<MetricId, string> = {
 	five_hour: "5h",
+	five_hour_burn: "5h/hr",
 	seven_day: "7d",
+	seven_day_burn: "7d/hr",
 	allowance_burn: "burn",
 	context: "ctx",
 	cost_today: "API today",
@@ -94,10 +100,18 @@ export function metricView(id: MetricId, snapshot: Snapshot): View {
 				missing: value === undefined
 			};
 		}
+		case "five_hour_burn":
+		case "seven_day_burn":
 		case "allowance_burn": {
-			// Show whichever window is projected to run out first — the one that will actually stop
-			// you. Falling back to the 5-hour window keeps a rate on screen when neither is at risk.
-			const which = snapshot.binding ?? "five_hour";
+			// The explicit variants pin one window. `allowance_burn` instead follows whichever is
+			// projected to run out first — the one that will actually stop you — falling back to the
+			// session window so a rate stays on screen when neither is at risk.
+			const which =
+				id === "five_hour_burn"
+					? "five_hour"
+					: id === "seven_day_burn"
+						? "seven_day"
+						: (snapshot.binding ?? "five_hour");
 			const metric: Metric = which === "five_hour" ? snapshot.fiveHour : snapshot.sevenDay;
 			const missing = metric.usedPct === undefined;
 			if (missing) {
@@ -106,7 +120,8 @@ export function metricView(id: MetricId, snapshot: Snapshot): View {
 			const label = which === "five_hour" ? "session" : "weekly";
 			return {
 				...base,
-				heading: `Burn · ${label}`,
+				// Only the auto variant renames itself, so it is always clear which window is on show.
+				heading: id === "allowance_burn" ? `Burn · ${label}` : HEADINGS[id],
 				value: pctPerHour(metric.ratePerHour),
 				pct: metric.usedPct,
 				// The projection is the point of this metric: not "how fast", but "when does it bite".
