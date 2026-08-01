@@ -67,6 +67,31 @@ Nothing in Claude Code shows you this — `/usage` tells you where you stand, no
 heading. In the first few minutes of a window there isn't enough elapsed time for the rate to mean
 anything, so it reads `warming up` rather than extrapolating from a single request.
 
+### Reset countdowns
+
+The desktop usage record stores no reset times, but the resets are visible in it: the 5-hour window
+drops straight to zero in a single sample rather than decaying. So the current block is located by
+walking back through the run of non-zero readings, and the reset is **five hours after it opened**.
+
+An inferred countdown is shown with a `~`:
+
+```
+~resets 2h 10m
+```
+
+It is deliberately one-sided. Usage below half a percent reads as zero, so the first non-zero sample
+sits at or after the true start — meaning an inferred reset **runs late, never early**. It cannot
+claim a window resets sooner than it does.
+
+Three situations produce no countdown at all, rather than a doubtful one: no active block, a
+sampling gap wide enough that the desktop app was clearly closed (two blocks can then look like one),
+and a first reading of 3% or more — which means usage accumulated before the first sample, so the
+estimate would run late by hours.
+
+Even when the countdown is withheld, the reset is still used to **clip the cap projection**, since
+running late only ever makes clipping more conservative. A real reset time from the statusline hook
+always takes precedence and is shown without the `~`.
+
 ## Where the numbers come from
 
 Your Claude plan allowance is shared across Claude desktop, claude.ai and Claude Code. The plugin
@@ -96,9 +121,9 @@ link see no folder at all.
 
 **2. The Claude Code statusline hook — optional.**
 
-Reports the same percentages but only while Claude Code is running. What it adds is what desktop
-doesn't record: **window reset countdowns**, context usage, and the current model. Install it if you
-use Claude Code; skip it if you don't.
+Reports the same percentages but only while Claude Code is running. What it adds is context usage,
+the current model, and **exact reset times** — the plugin infers those from sample history otherwise,
+but a reported one is always preferred. Install it if you use Claude Code; skip it if you don't.
 
 Neither source involves a network call, an API key, or an OAuth token. Both are plain reads of files
 Anthropic's own applications already wrote to your disk.

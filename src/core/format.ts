@@ -41,6 +41,28 @@ export function resetIn(resetsAt: Date | undefined, now: Date = new Date()): str
 	return `resets ${duration(resetsAt.getTime() - now.getTime())}`;
 }
 
+/**
+ * The reset countdown for a window, or an empty string when there is none worth showing.
+ *
+ * An inferred reset is marked `~` and shown only at `good` confidence. At `rough` confidence the
+ * block almost certainly opened before the first sample, so the countdown would run late by hours —
+ * still safe to clip projections against, but not a number to put on a dial.
+ *
+ * Structurally typed rather than taking a `Metric`, to keep this module free of upward imports.
+ */
+export function resetLine(
+	metric: { resetsAt?: Date; resetsAtInferred?: boolean; resetConfidence?: "good" | "rough" },
+	now: Date = new Date()
+): string {
+	if (!metric.resetsAt) {
+		return "";
+	}
+	if (!metric.resetsAtInferred) {
+		return resetIn(metric.resetsAt, now);
+	}
+	return metric.resetConfidence === "good" ? `~${resetIn(metric.resetsAt, now)}` : "";
+}
+
 /** USD, two decimals below $100 and none above, so the figure always fits the strip. */
 export function currency(value: number | undefined): string {
 	if (value === undefined || !Number.isFinite(value)) {

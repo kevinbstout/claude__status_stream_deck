@@ -9,7 +9,7 @@ import {
 	action
 } from "@elgato/streamdeck";
 
-import { pct } from "../core/format";
+import { pct, resetLine } from "../core/format";
 import type { Snapshot } from "../core/snapshot";
 import { bandFor, colorFor } from "../render/colors";
 import { attach, detach, openUsagePage, refresh } from "./base";
@@ -28,7 +28,12 @@ async function paint(
 	const five = snapshot.fiveHour.usedPct;
 	const seven = snapshot.sevenDay.usedPct;
 	const stale = snapshot.stale && snapshot.hasLimitData;
-	const heading = snapshot.hasLimitData ? `${stale ? "○ " : ""}Claude usage` : "Claude usage — no data";
+
+	// The session countdown is the most useful thing this layout has room for beyond the two bars.
+	const countdown = resetLine(snapshot.fiveHour);
+	const heading = !snapshot.hasLimitData
+		? "Claude usage — no data"
+		: `${stale ? "○ " : ""}${countdown || "Claude usage"}`;
 
 	await target.setFeedback({
 		heading,

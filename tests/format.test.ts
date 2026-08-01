@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { currency, duration, paceBand, paceGlyph, paceLabel, pct, perHour, resetIn, tokens } from "../src/core/format";
+import {
+	currency,
+	duration,
+	paceBand,
+	paceGlyph,
+	paceLabel,
+	pct,
+	perHour,
+	resetIn,
+	resetLine,
+	tokens
+} from "../src/core/format";
 
 describe("pct", () => {
 	it("rounds to whole percentages", () => {
@@ -54,6 +65,34 @@ describe("resetIn", () => {
 
 	it("is empty when there is no reset time", () => {
 		expect(resetIn(undefined)).toBe("");
+	});
+});
+
+describe("resetLine", () => {
+	const NOW = new Date("2026-07-31T12:00:00.000Z");
+	const IN_2H = new Date("2026-07-31T14:10:00.000Z");
+
+	it("shows an authoritative reset plainly", () => {
+		expect(resetLine({ resetsAt: IN_2H }, NOW)).toBe("resets 2h 10m");
+	});
+
+	it("marks an inferred reset with ~ so it reads as an estimate", () => {
+		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true, resetConfidence: "good" }, NOW)).toBe(
+			"~resets 2h 10m"
+		);
+	});
+
+	it("shows nothing for a rough inference", () => {
+		// A rough inference can run late by hours: safe to clip projections against, not to display.
+		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true, resetConfidence: "rough" }, NOW)).toBe("");
+	});
+
+	it("shows nothing when an inferred reset carries no confidence", () => {
+		expect(resetLine({ resetsAt: IN_2H, resetsAtInferred: true }, NOW)).toBe("");
+	});
+
+	it("shows nothing when there is no reset at all", () => {
+		expect(resetLine({}, NOW)).toBe("");
 	});
 });
 

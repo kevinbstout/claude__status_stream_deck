@@ -161,6 +161,26 @@ minutes elapsed where the divisor is meaningless.
 reset is discarded — the window refills first. `binding` names whichever window is projected to cap
 first, and is what the allowance-burn metric displays.
 
+**Inferred reset.** The desktop record has no reset times, but the resets are in the data: the
+5-hour window drops straight to zero in a single sample rather than decaying. `inferFiveHourReset()`
+walks back through the current run of non-zero readings and returns `blockStart + 5h`.
+
+The inference is one-sided by construction, and everything downstream depends on that. Usage below
+half a percent reads as zero, so the first non-zero sample is at or after the true start, and the
+inferred reset is therefore at or *after* the true one — late, never early. Clipping against a late
+reset is conservative; clipping against an early one would suppress a real warning.
+
+Three guards reject rather than return a doubtful value: no active block; a sampling gap over 15
+minutes inside the run (the only case that can produce an *early* inference, since two blocks merge
+into one apparent run when the desktop app was closed between them); and a reset already in the past.
+
+Confidence is `rough` when the first reading is `>= 3%`, meaning usage accumulated before the first
+sample. Rough inferences still clip, but are never displayed — measured against real history they can
+run late by hours. `Metric.resetsAtInferred` and `resetConfidence` carry this to the UI, and
+`format.resetLine()` is the single place that decides whether a countdown is shown and marks it `~`.
+
+A statusline reset always wins; it is authoritative and the inferred one is not.
+
 **Staleness** is source-aware: five minutes for the statusline, twelve for desktop. Desktop samples
 every five minutes, so the tighter threshold would flash "stale" in the gap before each sample.
 
@@ -305,8 +325,12 @@ Hard-won behaviours that are easy to rediscover the slow way.
 
 ## Known limitations
 
-- **Reset countdowns require the statusline hook.** The desktop usage record stores only percentages
-  and timestamps, so users who do not run Claude Code see burn rate and projection but no countdown.
+- **Reset countdowns are inferred without the statusline hook**, and withheld when the inference is
+  not trustworthy — see the snapshot section. Measured against 12 historical blocks on one machine,
+  clean inferences landed within ten minutes in 4 of 5 cases, with the fifth caught by the
+  confidence guard. The 3% threshold is fitted to that small sample; the mechanism behind it is
+  sound, the exact number is not strongly evidenced. `npm run diagnose` prints it so it can be
+  revisited against real data.
 - **The desktop usage file is undocumented.** Its shape or location may change in any release. The
   parser is defensive and degrades to `--` rather than displaying wrong numbers, but this is the main
   fragility in the design.

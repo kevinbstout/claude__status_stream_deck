@@ -41,12 +41,16 @@ console.log(
 		? `              sampled ${plan.latest.at.toISOString()}  fh ${plan.latest.fiveHourPct}%  sd ${plan.latest.sevenDayPct}%`
 		: "              absent — Claude desktop not installed, or never run"
 );
+// Printed so the inference can be checked against reality on other machines rather than trusted.
+console.log(
+	`inferred 5h reset: ${plan?.fiveHourResetsAt?.toISOString() ?? "--"}  confidence ${plan?.fiveHourResetConfidence ?? "--"}`
+);
 console.log("");
 console.log(`hasLimitData: ${snapshot.hasLimitData}${snapshot.hasLimitData ? "" : "   (limit dials will show --)"}`);
 console.log(`stale:        ${snapshot.stale}`);
 console.log(`model:        ${snapshot.model ?? "--"}`);
 const burn = (label: string, m: typeof snapshot.fiveHour): string =>
-	`${label}  ${m.usedPct ?? "--"}%  resets ${iso(m.resetsAt)}  burn ${m.ratePerHour?.toFixed(2) ?? "--"}%/hr  cap ${iso(m.exhaustsAt)}`;
+	`${label}  ${m.usedPct ?? "--"}%  resets ${iso(m.resetsAt)}${m.resetsAtInferred ? ` (inferred, ${m.resetConfidence})` : ""}  burn ${m.ratePerHour?.toFixed(2) ?? "--"}%/hr  cap ${iso(m.exhaustsAt)}`;
 console.log(burn("5h:          ", snapshot.fiveHour));
 console.log(burn("7d:          ", snapshot.sevenDay));
 console.log(`binding:      ${snapshot.binding ?? "neither window is on course to cap"}`);

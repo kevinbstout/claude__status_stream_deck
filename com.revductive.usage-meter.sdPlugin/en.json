@@ -1,6 +1,6 @@
 {
 	"Name": "Agent Usage Meter",
-	"Description": "Live usage limits, spend, and burn rate for Claude Code on your dials and touch strip. Reads local files only — no network access and no credentials.",
+	"Description": "Live plan usage, burn rate, and API token cost for Claude on your dials and touch strip. Reads local files only — no network access and no credentials.",
 	"Category": "Agent Usage Meter",
 	"Actions": {
 		"com.revductive.usage-meter.meter": {

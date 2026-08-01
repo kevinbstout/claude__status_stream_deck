@@ -5,7 +5,13 @@ import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { setDesktopDirOverride } from "../src/core/paths";
-import { type PlanSample, measureRate, readPlanUsage, resetPlanUsageCache } from "../src/core/plan-usage";
+import {
+	type PlanSample,
+	inferFiveHourReset,
+	measureRate,
+	readPlanUsage,
+	resetPlanUsageCache
+} from "../src/core/plan-usage";
 
 const T0 = new Date("2026-07-31T12:00:00.000Z").getTime();
 
@@ -41,6 +47,72 @@ afterEach(() => {
 	for (const dir of dirs.splice(0)) {
 		fs.rmSync(dir, { recursive: true, force: true });
 	}
+});
+
+describe("inferFiveHourReset", () => {
+	const H = 3_600_000;
+	const NOW = new Date(T0 + 30 * 60_000);
+
+	/** Samples every 5 minutes starting `startMinutesAgo` before T0, with the given fh values. */
+	function run(startMinutesAgo: number, values: number[], stepMinutes = 5): PlanSample[] {
+		return values.map((fh, i) => ({
+			at: new Date(T0 - startMinutesAgo * 60_000 + i * stepMinutes * 60_000),
+			fiveHourPct: fh,
+			sevenDayPct: 2,
+			org: "org-a"
+		}));
+	}
+
+	it("puts the reset five hours after the block opened", () => {
+		// Block opens 60 minutes before T0; reset is 5h after that.
+		const samples = run(60, [1, 2, 3, 4]);
+		const result = inferFiveHourReset(samples, NOW)!;
+		expect(result.at.toISOString()).toBe(new Date(T0 - 60 * 60_000 + 5 * H).toISOString());
+		expect(result.confidence).toBe("good");
+	});
+
+	it("anchors to the start of the run, not to an earlier block", () => {
+		// A zero separates two blocks; only the later one is current.
+		const samples = [...run(120, [4, 5, 0]), ...run(60, [1, 2])];
+		const result = inferFiveHourReset(samples, NOW)!;
+		expect(result.at.toISOString()).toBe(new Date(T0 - 60 * 60_000 + 5 * H).toISOString());
+	});
+
+	it("returns nothing when no block is active", () => {
+		expect(inferFiveHourReset(run(60, [4, 5, 0]), NOW)).toBeUndefined();
+	});
+
+	it("returns nothing when the desktop app was closed mid-run", () => {
+		// A wide gap can merge two blocks into one apparent run, which is the only way the inference
+		// could land earlier than the true reset. Refuse rather than risk it.
+		const samples = [
+			{ at: new Date(T0 - 300 * 60_000), fiveHourPct: 4, sevenDayPct: 2, org: "org-a" },
+			{ at: new Date(T0 - 20 * 60_000), fiveHourPct: 6, sevenDayPct: 2, org: "org-a" },
+			{ at: new Date(T0), fiveHourPct: 7, sevenDayPct: 2, org: "org-a" }
+		];
+		expect(inferFiveHourReset(samples, NOW)).toBeUndefined();
+	});
+
+	it("returns nothing when the inferred reset is already in the past", () => {
+		const samples = run(0, [1, 2]);
+		const wayLater = new Date(T0 + 9 * H);
+		expect(inferFiveHourReset(samples, wayLater)).toBeUndefined();
+	});
+
+	it("marks a large first reading as rough, since usage began before we saw it", () => {
+		// The real-world failure case: the block opened earlier at under half a percent, which reads
+		// as zero, so the inferred reset runs late.
+		const result = inferFiveHourReset(run(60, [5, 8, 11]), NOW)!;
+		expect(result.confidence).toBe("rough");
+	});
+
+	it("treats a small first reading as a genuine block start", () => {
+		expect(inferFiveHourReset(run(60, [2, 8, 11]), NOW)!.confidence).toBe("good");
+	});
+
+	it("returns nothing for an empty series", () => {
+		expect(inferFiveHourReset([], NOW)).toBeUndefined();
+	});
 });
 
 describe("readPlanUsage", () => {

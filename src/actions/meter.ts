@@ -12,7 +12,7 @@ import {
 	action
 } from "@elgato/streamdeck";
 
-import { currency, duration, pct, paceLabel, pctPerHour, perHour, resetIn } from "../core/format";
+import { currency, duration, pct, paceLabel, pctPerHour, perHour, resetLine } from "../core/format";
 import type { Metric, Snapshot } from "../core/snapshot";
 import { bandFor } from "../render/colors";
 import { gauge, toDataUri } from "../render/gauge";
@@ -79,7 +79,7 @@ export function metricView(id: MetricId, snapshot: Snapshot): View {
 				...base,
 				value: missing ? "--" : pct(metric.usedPct),
 				pct: metric.usedPct,
-				reset: missing ? "no data" : resetIn(metric.resetsAt),
+				reset: missing ? "no data" : resetLine(metric),
 				pace: missing ? "" : paceLabel(metric.pace),
 				missing
 			};
@@ -110,11 +110,12 @@ export function metricView(id: MetricId, snapshot: Snapshot): View {
 				value: pctPerHour(metric.ratePerHour),
 				pct: metric.usedPct,
 				// The projection is the point of this metric: not "how fast", but "when does it bite".
+				// When nothing is going to bite, the next most useful fact is when the window refills.
 				reset: metric.exhaustsAt
 					? `cap in ${duration(metric.exhaustsAt.getTime() - Date.now())}`
 					: metric.ratePerHour === undefined
 						? "warming up"
-						: "clears the window",
+						: resetLine(metric) || "clears the window",
 				pace: paceLabel(metric.pace),
 				missing: false
 			};

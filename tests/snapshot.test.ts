@@ -163,6 +163,82 @@ describe("Claude desktop plan usage as a source", () => {
 	});
 });
 
+describe("inferred reset times", () => {
+	const base = {
+		latest: { at: NOW, fiveHourPct: 40, sevenDayPct: 12 },
+		fiveHourRatePerHour: 20,
+		sevenDayRatePerHour: 1
+	};
+
+	it("uses an inferred reset when the statusline supplied none", () => {
+		const plan = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T14:00:00.000Z"),
+			fiveHourResetConfidence: "good" as const
+		};
+		const snapshot = buildSnapshot({ state: undefined, plan, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.resetsAt!.toISOString()).toBe("2026-07-31T14:00:00.000Z");
+		expect(snapshot.fiveHour.resetsAtInferred).toBe(true);
+		expect(snapshot.fiveHour.resetConfidence).toBe("good");
+	});
+
+	it("lets a statusline reset win over an inferred one", () => {
+		const state = {
+			updatedAt: NOW.toISOString(),
+			fiveHour: { usedPct: 55, resetsAt: "2026-07-31T13:00:00.000Z" }
+		};
+		const plan = {
+			...base,
+			latest: { ...base.latest, at: new Date(NOW.getTime() - 60_000) },
+			fiveHourResetsAt: new Date("2026-07-31T17:00:00.000Z"),
+			fiveHourResetConfidence: "good" as const
+		};
+		const snapshot = buildSnapshot({ state, plan, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.resetsAt!.toISOString()).toBe("2026-07-31T13:00:00.000Z");
+		// An authoritative reset is never labelled an estimate.
+		expect(snapshot.fiveHour.resetsAtInferred).toBeUndefined();
+	});
+
+	it("clips a projection landing after the inferred reset", () => {
+		// 60% left at 20%/hr is three hours away, but the window refills in one — so there is no cap
+		// to warn about. Without an inferred reset this projection would have been shown.
+		const plan = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T13:00:00.000Z"),
+			fiveHourResetConfidence: "good" as const
+		};
+		const withReset = buildSnapshot({ state: undefined, plan, entries: [], exactness: "exact", now: NOW });
+		expect(withReset.fiveHour.exhaustsAt).toBeUndefined();
+		// With the session projection cleared, the weekly window is the only one still on course to
+		// cap, so it becomes the binding constraint.
+		expect(withReset.binding).toBe("seven_day");
+
+		const withoutReset = buildSnapshot({ state: undefined, plan: base, entries: [], exactness: "exact", now: NOW });
+		expect(withoutReset.fiveHour.exhaustsAt!.toISOString()).toBe("2026-07-31T15:00:00.000Z");
+	});
+
+	it("still clips at rough confidence, which only ever runs late", () => {
+		const plan = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T13:00:00.000Z"),
+			fiveHourResetConfidence: "rough" as const
+		};
+		const snapshot = buildSnapshot({ state: undefined, plan, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.exhaustsAt).toBeUndefined();
+		expect(snapshot.fiveHour.resetConfidence).toBe("rough");
+	});
+
+	it("keeps a projection that lands before the inferred reset", () => {
+		const plan = {
+			...base,
+			fiveHourResetsAt: new Date("2026-07-31T20:00:00.000Z"),
+			fiveHourResetConfidence: "good" as const
+		};
+		const snapshot = buildSnapshot({ state: undefined, plan, entries: [], exactness: "exact", now: NOW });
+		expect(snapshot.fiveHour.exhaustsAt!.toISOString()).toBe("2026-07-31T15:00:00.000Z");
+	});
+});
+
 describe("bindingWindow", () => {
 	it("picks whichever window runs out first when both are at risk", () => {
 		// Session: 3h elapsed, 75% used → 25%/hr, 25% left → capped in 1h.

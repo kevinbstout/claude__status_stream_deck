@@ -34,17 +34,43 @@ export type PlanSample = {
 	org?: string;
 };
 
+/**
+ * How much to trust an inferred reset time.
+ *
+ * `good` — the block was observed from its start; expect accuracy within about ten minutes.
+ * `rough` — the first reading was already large, so usage almost certainly began before the first
+ *           sample and the true reset is earlier than inferred. Safe to clip against, not to display.
+ */
+export type ResetConfidence = "good" | "rough";
+
 export type PlanUsage = {
 	latest: PlanSample;
 	/** Percentage points per hour, measured from recent samples. Undefined when not yet knowable. */
 	fiveHourRatePerHour?: number;
 	sevenDayRatePerHour?: number;
+	/** Inferred end of the current 5-hour block. Undefined when it cannot be established safely. */
+	fiveHourResetsAt?: Date;
+	fiveHourResetConfidence?: ResetConfidence;
 };
 
 /** How far back to look when measuring the current burn rate. */
 const RATE_WINDOW_MS = 90 * 60 * 1000;
 /** Minimum span between first and last sample before a rate means anything. */
 const MIN_SPAN_MS = 15 * 60 * 1000;
+/** Length of the rolling session window. */
+const BLOCK_MS = 5 * 60 * 60 * 1000;
+/**
+ * Largest sampling gap tolerated inside a block, at a five-minute cadence.
+ *
+ * A wider gap means the desktop app was closed, and two separate blocks can then look like one
+ * continuous run — the only way an inference can land *earlier* than the true reset.
+ */
+const MAX_BLOCK_GAP_MS = 15 * 60 * 1000;
+/**
+ * A first reading at or above this means usage accumulated before we ever sampled it, so the block
+ * began earlier than it appears and the inferred reset will run late.
+ */
+const ROUGH_START_PCT = 3;
 
 type Cache = { mtimeMs: number; size: number; value: PlanUsage | undefined };
 let cache: Cache | undefined;
@@ -100,10 +126,14 @@ function parse(raw: string): PlanUsage | undefined {
 	// meaningless number, so scope the measurement to the account the latest sample belongs to.
 	const scoped = latest.org === undefined ? samples : samples.filter((s) => s.org === latest.org);
 
+	const reset = inferFiveHourReset(scoped);
+
 	return {
 		latest,
 		fiveHourRatePerHour: measureRate(scoped, (s) => s.fiveHourPct),
-		sevenDayRatePerHour: measureRate(scoped, (s) => s.sevenDayPct)
+		sevenDayRatePerHour: measureRate(scoped, (s) => s.sevenDayPct),
+		fiveHourResetsAt: reset?.at,
+		fiveHourResetConfidence: reset?.confidence
 	};
 }
 
@@ -147,6 +177,61 @@ let lastFailure: PlanUsageFailure = "ok";
 
 export function lastPlanUsageFailure(): PlanUsageFailure {
 	return lastFailure;
+}
+
+/**
+ * Infer when the current 5-hour block ends.
+ *
+ * The window hard-resets rather than decaying: across eleven days of real samples, twelve of
+ * thirteen decreases dropped straight to zero in a single five-minute step. So the block can be
+ * located by walking back through the current run of non-zero readings, and it ends five hours
+ * after it began.
+ *
+ * The inference is deliberately one-sided. The first non-zero sample is at or after the true start
+ * — usage below half a percent reads as zero — so the inferred reset is at or *after* the true one.
+ * It runs late, never early, which is the safe direction for both clipping and display.
+ *
+ * @param samples ascending, already scoped to one account
+ * @returns the inferred reset, or undefined when it cannot be established safely
+ */
+export function inferFiveHourReset(
+	samples: PlanSample[],
+	now: Date = new Date()
+): { at: Date; confidence: ResetConfidence } | undefined {
+	if (samples.length === 0) {
+		return undefined;
+	}
+	const latest = samples[samples.length - 1]!;
+	// No active block: nothing is running, so there is nothing to reset.
+	if (latest.fiveHourPct <= 0) {
+		return undefined;
+	}
+
+	// Walk back through the contiguous run of non-zero readings to find where the block opened.
+	let start = samples.length - 1;
+	for (let i = samples.length - 1; i > 0; i--) {
+		const previous = samples[i - 1]!;
+		if (previous.fiveHourPct <= 0) {
+			break;
+		}
+		// A gap this wide means the desktop app was closed, and two blocks either side of it are
+		// indistinguishable from one. Refuse rather than risk anchoring to the older one.
+		if (samples[i]!.at.getTime() - previous.at.getTime() > MAX_BLOCK_GAP_MS) {
+			return undefined;
+		}
+		start = i - 1;
+	}
+
+	const at = new Date(samples[start]!.at.getTime() + BLOCK_MS);
+	// A reset in the past contradicts an active block, so the anchor must be wrong.
+	if (at.getTime() <= now.getTime()) {
+		return undefined;
+	}
+
+	return {
+		at,
+		confidence: samples[start]!.fiveHourPct >= ROUGH_START_PCT ? "rough" : "good"
+	};
 }
 
 /** Read Claude desktop's plan usage history, cached by file mtime and size. */

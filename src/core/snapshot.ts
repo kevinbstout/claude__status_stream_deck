@@ -1,6 +1,6 @@
 import { BLOCK_MS, activeBlock, buildBlocks } from "./blocks";
 import { type UsageEntry, readTranscripts } from "./jsonl";
-import { type PlanUsage, readPlanUsage } from "./plan-usage";
+import { type PlanUsage, type ResetConfidence, readPlanUsage } from "./plan-usage";
 import { type LimitState, readState } from "./state";
 
 export const STALE_AFTER_MS = 5 * 60 * 1000;
@@ -19,6 +19,13 @@ export type Metric = {
 	pace?: number;
 	/** Percentage points of the allowance consumed per hour so far in this window. */
 	ratePerHour?: number;
+	/**
+	 * True when `resetsAt` was inferred from sample history rather than reported by the statusline.
+	 * An inferred reset runs late, never early, and must never be presented as fact.
+	 */
+	resetsAtInferred?: boolean;
+	/** How far the inferred reset can be trusted. Absent when `resetsAt` is authoritative. */
+	resetConfidence?: ResetConfidence;
 	/**
 	 * When the allowance runs out if consumption continues at `ratePerHour`.
 	 * Only set when that lands before the window resets — otherwise the cap is not in reach.
@@ -223,13 +230,27 @@ export function buildSnapshot({ state, plan, entries, exactness, now = new Date(
 	// The statusline carries reset times, so build from it first and let the fresher source's
 	// percentages win — keeping the reset countdown even when desktop supplies the number.
 	const planIsFresher = planAt.getTime() > validStateAt.getTime();
-	let fiveHour = buildMetric(
+	const fiveHourSource =
 		planIsFresher && plan
 			? { usedPct: plan.latest.fiveHourPct, resetsAt: state?.fiveHour?.resetsAt }
-			: state?.fiveHour,
+			: state?.fiveHour;
+
+	// Fall back to the reset inferred from sample history, but only when the statusline reported
+	// none — a statusline reset is authoritative and always wins. Applying it before buildMetric
+	// means the window start, pace, and clipping are all derived from one consistent reset time.
+	const inferred = plan?.fiveHourResetsAt;
+	const useInferred = fiveHourSource !== undefined && fiveHourSource.resetsAt === undefined && inferred !== undefined;
+
+	let fiveHour = buildMetric(
+		useInferred ? { ...fiveHourSource, resetsAt: inferred.toISOString() } : fiveHourSource,
 		BLOCK_MS,
 		now
 	);
+	if (useInferred) {
+		fiveHour.resetsAtInferred = true;
+		fiveHour.resetConfidence = plan?.fiveHourResetConfidence;
+	}
+
 	let sevenDay = buildMetric(
 		planIsFresher && plan
 			? { usedPct: plan.latest.sevenDayPct, resetsAt: state?.sevenDay?.resetsAt }
